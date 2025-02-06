@@ -1,0 +1,12 @@
+PassengerEnabled On
+PassengerPython /home/username/virtualenv/chatbot/3.11/bin/python3.11
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^(.*)$ /passenger_wsgi.py/$1 [QSA,L]
+</IfModule>
+
+Header set Access-Control-Allow-Origin "*"
+Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+Header set Access-Control-Allow-Headers "Content-Type"
