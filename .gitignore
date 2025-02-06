@@ -16,3 +16,12 @@ venv/
 # Local development
 *.sqlite3
 .DS_Store
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Deployment
+.koyeb/
+.vercel/
+.netlify/

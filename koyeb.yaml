@@ -1,0 +1,16 @@
+name: souqcoom-support
+service:
+  name: api
+  ports:
+    - port: 8080
+      http: "/"
+  env:
+    - name: MISTRAL_API_KEY
+      value: "YOUR_API_KEY"
+  scale:
+    horizontal:
+      min: 1
+      max: 1
+  routes:
+    - path: /
+      public: true
