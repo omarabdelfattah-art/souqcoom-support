@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mistral AI Chatbot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+</head>
+<body>
+    <div class="chatbot">
+        <header>
+            <h2>Mistral AI Chatbot</h2>
+        </header>
+        <ul class="chatbox">
+            <li class="chat incoming">
+                <p>Hi there! 👋<br>How can I help you today?</p>
+            </li>
+        </ul>
+        <div class="chat-input">
+            <textarea placeholder="Enter a message..." required></textarea>
+            <span id="send-btn" class="material-icons">send</span>
+        </div>
+    </div>
+
+    <script>
+        const chatbox = document.querySelector(".chatbox");
+        const textarea = document.querySelector("textarea");
+        const sendBtn = document.querySelector("#send-btn");
+
+        let userMessage;
+
+        const createChatLi = (message, className) => {
+            const chatLi = document.createElement("li");
+            chatLi.classList.add("chat", className);
+            chatLi.innerHTML = `<p>${message}</p>`;
+            return chatLi;
+        }
+
+        const handleChat = async () => {
+            userMessage = textarea.value.trim();
+            if(!userMessage) return;
+
+            textarea.value = "";
+            textarea.style.height = "55px";
+
+            chatbox.appendChild(createChatLi(userMessage, "outgoing"));
+            chatbox.scrollTo(0, chatbox.scrollHeight);
+
+            const response = await fetch("/chat", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    message: userMessage
+                })
+            });
+
+            const data = await response.json();
+            chatbox.appendChild(createChatLi(data.response, "incoming"));
+            chatbox.scrollTo(0, chatbox.scrollHeight);
+        }
+
+        textarea.addEventListener("input", () => {
+            textarea.style.height = "55px";
+            textarea.style.height = `${textarea.scrollHeight}px`;
+        });
+
+        textarea.addEventListener("keydown", (e) => {
+            if(e.key === "Enter" && !e.shiftKey && window.innerWidth > 800) {
+                e.preventDefault();
+                handleChat();
+            }
+        });
+
+        sendBtn.addEventListener("click", handleChat);
+    </script>
+</body>
+</html>
