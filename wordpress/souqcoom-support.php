@@ -16,7 +16,7 @@ function souqcoom_support_enqueue_scripts() {
     wp_enqueue_style('souqcoom-support-style', plugins_url('css/chat-widget.css', __FILE__));
     wp_enqueue_script('souqcoom-support-script', plugins_url('js/chat-widget.js', __FILE__), array('jquery'), '1.0', true);
     wp_localize_script('souqcoom-support-script', 'souqcoomSupport', array(
-        'apiUrl' => 'https://souqcoom-support.yourusername.repl.co/chat'  // Replace with your actual Replit URL
+        'apiUrl' => 'http://localhost:8080/chat'  // Local development URL
     ));
 }
 add_action('wp_enqueue_scripts', 'souqcoom_support_enqueue_scripts');

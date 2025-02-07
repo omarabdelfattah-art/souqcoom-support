@@ -6,9 +6,14 @@ import os
 from dotenv import load_dotenv
 import uvicorn
 from fastapi.responses import HTMLResponse
+import logging
 
 # Load environment variables
 load_dotenv()
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -59,6 +64,10 @@ async def root():
                 <h2>GET /health</h2>
                 <p>Check the API health status.</p>
             </div>
+            <div class="endpoint">
+                <h2>POST /test</h2>
+                <p>Test endpoint.</p>
+            </div>
         </body>
     </html>
     """
@@ -70,24 +79,43 @@ async def health_check():
         "version": "1.0.0"
     }
 
+@app.post("/test")
+async def test():
+    return {"status": "success", "message": "Test endpoint working"}
+
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
+        logger.info(f"Received message: {request.message}")
         messages = [
             {"role": "user", "content": request.message}
         ]
 
+        api_key = os.getenv("MISTRAL_API_KEY")
+        if not api_key:
+            logger.error("MISTRAL_API_KEY not found in environment variables")
+            raise HTTPException(
+                status_code=500,
+                detail="API key not configured"
+            )
+
+        logger.info("Initializing Mistral client")
+        client = MistralClient(api_key=api_key)
+
+        logger.info("Sending request to Mistral API")
         response = client.chat(
             model="mistral-small-latest",
             messages=messages,
             temperature=0.7,
         )
 
+        logger.info("Received response from Mistral API")
         return {
             "message": response.choices[0].message.content,
             "status": "success"
         }
     except Exception as e:
+        logger.error(f"Error in chat endpoint: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to process chat request: {str(e)}"
