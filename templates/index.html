@@ -3,24 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mistral AI Chatbot</title>
+    <title>Souq.com Support</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <div class="chatbot">
         <header>
-            <h2>Mistral AI Chatbot</h2>
+            <div class="header-content">
+                <i class="fas fa-shopping-bag"></i>
+                <h2>Souq.com Support</h2>
+            </div>
         </header>
         <ul class="chatbox">
             <li class="chat incoming">
-                <p>Hi there! 👋<br>How can I help you today?</p>
+                <p>👋 مرحباً بك في دعم سوق.كوم! كيف يمكنني مساعدتك اليوم؟<br>Hello! Welcome to Souq.com support! How can I assist you today?</p>
             </li>
         </ul>
         <div class="chat-input">
-            <textarea placeholder="Enter a message..." required></textarea>
-            <span id="send-btn" class="material-icons">send</span>
+            <textarea placeholder="Type your message here..." required></textarea>
+            <button id="send-btn">
+                <i class="fas fa-paper-plane"></i>
+            </button>
         </div>
     </div>
 
@@ -34,7 +39,8 @@
         const createChatLi = (message, className) => {
             const chatLi = document.createElement("li");
             chatLi.classList.add("chat", className);
-            chatLi.innerHTML = `<p>${message}</p>`;
+            let formattedMessage = message.replace(/\n/g, '<br>');
+            chatLi.innerHTML = `<p>${formattedMessage}</p>`;
             return chatLi;
         }
 
@@ -43,7 +49,7 @@
             if(!userMessage) return;
 
             textarea.value = "";
-            textarea.style.height = "55px";
+            textarea.style.height = "48px";
 
             chatbox.appendChild(createChatLi(userMessage, "outgoing"));
             chatbox.scrollTo(0, chatbox.scrollHeight);
@@ -64,8 +70,9 @@
         }
 
         textarea.addEventListener("input", () => {
-            textarea.style.height = "55px";
-            textarea.style.height = `${textarea.scrollHeight}px`;
+            textarea.style.height = "48px";
+            const height = Math.min(textarea.scrollHeight, 120);
+            textarea.style.height = `${height}px`;
         });
 
         textarea.addEventListener("keydown", (e) => {

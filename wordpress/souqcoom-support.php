@@ -1,9 +1,11 @@
 <?php
 /*
 Plugin Name: Souqcoom Support Chat
-Description: AI-powered support chat for Souqcoom
+Plugin URI: https://souq.com
+Description: A modern chat support widget for Souq.com
 Version: 1.0
 Author: Your Name
+Author URI: https://souq.com
 */
 
 // Prevent direct access to this file
@@ -11,69 +13,137 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Add chat widget script and styles
-function souqcoom_support_enqueue_scripts() {
-    wp_enqueue_style('souqcoom-support-style', plugins_url('css/chat-widget.css', __FILE__));
-    wp_enqueue_script('souqcoom-support-script', plugins_url('js/chat-widget.js', __FILE__), array('jquery'), '1.0', true);
-    wp_localize_script('souqcoom-support-script', 'souqcoomSupport', array(
-        'apiUrl' => 'https://souqcoom-support.vercel.app/chat'  // Vercel deployment URL
+// Enqueue necessary scripts and styles
+function souqcoom_enqueue_scripts() {
+    // Enqueue Font Awesome
+    wp_enqueue_style('font-awesome', 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+    
+    // Enqueue custom styles
+    wp_enqueue_style('souqcoom-chat-style', plugins_url('css/style.css', __FILE__));
+    
+    // Enqueue jQuery
+    wp_enqueue_script('jquery');
+    
+    // Enqueue custom script
+    wp_enqueue_script('souqcoom-chat-script', plugins_url('js/chat.js', __FILE__), array('jquery'), '1.0', true);
+    
+    // Localize the script with new data
+    wp_localize_script('souqcoom-chat-script', 'souqcoom_ajax', array(
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('souqcoom_chat_nonce')
     ));
 }
-add_action('wp_enqueue_scripts', 'souqcoom_support_enqueue_scripts');
+add_action('wp_enqueue_scripts', 'souqcoom_enqueue_scripts');
 
 // Add chat widget HTML
-function souqcoom_support_add_chat_widget() {
+function souqcoom_add_chat_widget() {
     ?>
-    <div id="souqcoom-support-widget" class="souqcoom-widget-container">
-        <div class="chat-header">
-            <div class="header-left">
-                <img src="<?php echo plugins_url('images/souqcoom-icon.png', __FILE__); ?>" alt="Souqcoom Support" class="support-icon" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJ3aGl0ZSI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjxwYXRoIGQ9Ik0xMiA2Yy0zLjMxIDAtNiAyLjY5LTYgNnMyLjY5IDYgNiA2IDYtMi42OSA2LTYtMi42OS02LTYtNnptMCAxMGMtMi4yMSAwLTQtMS43OS00LTRzMS43OS00IDQtNCA0IDEuNzkgNCA0LTEuNzkgNC00IDR6Ii8+PC9zdmc+'" />
-                <h3>Souqcoom Support</h3>
-            </div>
-            <button class="minimize-btn" aria-label="Minimize chat">−</button>
+    <div class="souqcoom-chat-widget">
+        <div class="souqcoom-chat-toggle">
+            <i class="fas fa-comments"></i>
         </div>
-        <div class="chat-messages"></div>
-        <div class="chat-input">
-            <textarea 
-                placeholder="Type your message here..." 
-                aria-label="Chat message"
-                rows="1"
-            ></textarea>
-            <button class="send-btn" aria-label="Send message">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-            </button>
+        <div class="souqcoom-chatbot">
+            <header>
+                <div class="header-content">
+                    <i class="fas fa-shopping-bag"></i>
+                    <h2>Souq.com Support</h2>
+                </div>
+                <div class="close-chat">
+                    <i class="fas fa-times"></i>
+                </div>
+            </header>
+            <ul class="chatbox">
+                <li class="chat incoming">
+                    <p>👋 مرحباً بك في دعم سوق.كوم! كيف يمكنني مساعدتك اليوم؟<br>Hello! Welcome to Souq.com support! How can I assist you today?</p>
+                </li>
+            </ul>
+            <div class="chat-input">
+                <textarea placeholder="Type your message here..." required></textarea>
+                <button id="send-btn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
         </div>
     </div>
     <?php
 }
-add_action('wp_footer', 'souqcoom_support_add_chat_widget');
+add_action('wp_footer', 'souqcoom_add_chat_widget');
+
+// Handle AJAX chat messages
+function souqcoom_handle_chat_message() {
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'souqcoom_chat_nonce')) {
+        wp_send_json_error('Invalid nonce');
+    }
+
+    // Get the message
+    $message = sanitize_textarea_field($_POST['message']);
+    
+    // Here you would typically process the message through your chat API
+    // For now, we'll just echo back a simple response
+    $response = "Thank you for your message. Our team will get back to you soon.";
+    
+    wp_send_json_success($response);
+}
+add_action('wp_ajax_souqcoom_chat_message', 'souqcoom_handle_chat_message');
+add_action('wp_ajax_nopriv_souqcoom_chat_message', 'souqcoom_handle_chat_message');
 
 // Add settings page
-function souqcoom_support_add_admin_menu() {
+function souqcoom_add_admin_menu() {
     add_options_page(
         'Souqcoom Support Settings',
         'Souqcoom Support',
         'manage_options',
         'souqcoom-support',
-        'souqcoom_support_settings_page'
+        'souqcoom_settings_page'
     );
 }
-add_action('admin_menu', 'souqcoom_support_add_admin_menu');
+add_action('admin_menu', 'souqcoom_add_admin_menu');
 
-function souqcoom_support_settings_page() {
+// Create the settings page
+function souqcoom_settings_page() {
     ?>
     <div class="wrap">
         <h1>Souqcoom Support Settings</h1>
         <form method="post" action="options.php">
             <?php
-            settings_fields('souqcoom_support_options');
+            settings_fields('souqcoom_options');
             do_settings_sections('souqcoom-support');
             submit_button();
             ?>
         </form>
     </div>
+    <?php
+}
+
+// Register settings
+function souqcoom_register_settings() {
+    register_setting('souqcoom_options', 'souqcoom_api_key');
+    
+    add_settings_section(
+        'souqcoom_settings_section',
+        'API Settings',
+        'souqcoom_settings_section_callback',
+        'souqcoom-support'
+    );
+    
+    add_settings_field(
+        'souqcoom_api_key',
+        'API Key',
+        'souqcoom_api_key_render',
+        'souqcoom-support',
+        'souqcoom_settings_section'
+    );
+}
+add_action('admin_init', 'souqcoom_register_settings');
+
+function souqcoom_settings_section_callback() {
+    echo 'Enter your API settings below:';
+}
+
+function souqcoom_api_key_render() {
+    $api_key = get_option('souqcoom_api_key');
+    ?>
+    <input type='text' name='souqcoom_api_key' value='<?php echo esc_attr($api_key); ?>'>
     <?php
 }
