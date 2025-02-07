@@ -79,11 +79,27 @@ function souqcoom_handle_chat_message() {
     // Get the message
     $message = sanitize_textarea_field($_POST['message']);
     
-    // Here you would typically process the message through your chat API
-    // For now, we'll just echo back a simple response
-    $response = "Thank you for your message. Our team will get back to you soon.";
+    // Call the AI chat API
+    $api_url = 'https://souqcoom-support.vercel.app/chat';
+    $response = wp_remote_post($api_url, array(
+        'headers'     => array('Content-Type' => 'application/json'),
+        'body'        => json_encode(array('message' => $message)),
+        'timeout'     => 45
+    ));
     
-    wp_send_json_success($response);
+    if (is_wp_error($response)) {
+        wp_send_json_error('Sorry, there was an error connecting to the chat service.');
+        return;
+    }
+    
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+    
+    if (isset($data['response'])) {
+        wp_send_json_success($data['response']);
+    } else {
+        wp_send_json_error('Sorry, there was an error processing your message.');
+    }
 }
 add_action('wp_ajax_souqcoom_chat_message', 'souqcoom_handle_chat_message');
 add_action('wp_ajax_nopriv_souqcoom_chat_message', 'souqcoom_handle_chat_message');
