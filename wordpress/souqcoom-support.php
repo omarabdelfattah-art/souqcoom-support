@@ -95,10 +95,10 @@ function souqcoom_handle_chat_message() {
     $body = wp_remote_retrieve_body($response);
     $data = json_decode($body, true);
     
-    if (isset($data['response'])) {
-        wp_send_json_success($data['response']);
+    if (isset($data['message']) && $data['status'] === 'success') {
+        wp_send_json_success($data['message']);
     } else {
-        wp_send_json_error('Sorry, there was an error processing your message.');
+        wp_send_json_error($data['detail'] ?? 'Sorry, there was an error processing your message.');
     }
 }
 add_action('wp_ajax_souqcoom_chat_message', 'souqcoom_handle_chat_message');
