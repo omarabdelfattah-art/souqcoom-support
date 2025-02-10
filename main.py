@@ -141,7 +141,14 @@ async def chat(request: ChatRequest):
         )
 
         if request.language == "ar":
-            system_message.content += "\nRespond in Arabic with proper RTL formatting."
+            system_message.content += """\nأنت مساعد افتراضي ذكي متخصص في خدمة عملاء سوق.كوم. يجب أن تكون إجاباتك:
+1. مهنية ودقيقة
+2. باللغة العربية الفصحى المبسطة
+3. مراعية للسياق الثقافي
+4. موجزة ومباشرة
+5. ودودة مع الحفاظ على المهنية
+
+استخدم صيغة المخاطب المحترمة (أنتم) عند الحديث مع العملاء."""
         elif request.language == "fr":
             system_message.content += "\nRépondez en français."
         elif request.language == "es":
