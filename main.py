@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from mistralai.client import MistralClient
+from mistralai.models.chat_completion import ChatMessage
 import os
 from dotenv import load_dotenv
 import uvicorn
@@ -73,12 +74,17 @@ async def root():
 @app.get("/health")
 async def health_check():
     try:
-        # Test Mistral AI connection
+        # Test Mistral AI connection with minimal token usage
+        messages = [
+            ChatMessage(role="user", content="test")
+        ]
+        
         client.chat(
             model="mistral-tiny",
-            messages=[{"role": "user", "content": "test"}],
-            max_tokens=10
+            messages=messages,
+            max_tokens=1
         )
+        
         return {
             "status": "healthy",
             "mistral_api": "connected",
@@ -103,20 +109,23 @@ async def chat(request: ChatRequest):
             raise HTTPException(status_code=400, detail="Message cannot be empty")
 
         # Prepare system prompt based on language
-        system_prompt = """You are a helpful customer service assistant for Souq.com, an e-commerce platform. 
-        Provide clear, concise, and helpful responses. If you don't know something, say so honestly.
-        Keep responses friendly but professional."""
+        system_message = ChatMessage(
+            role="system",
+            content="""You are a helpful customer service assistant for Souq.com, an e-commerce platform. 
+            Provide clear, concise, and helpful responses. If you don't know something, say so honestly.
+            Keep responses friendly but professional."""
+        )
 
         if request.language == "ar":
-            system_prompt += "\nRespond in Arabic with proper RTL formatting."
+            system_message.content += "\nRespond in Arabic with proper RTL formatting."
         
         # Prepare messages
         messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": request.message}
+            system_message,
+            ChatMessage(role="user", content=request.message)
         ]
         
-        logger.debug(f"Sending request to Mistral AI with messages: {json.dumps(messages)}")
+        logger.debug(f"Sending request to Mistral AI with messages: {[m.dict() for m in messages]}")
 
         # Call Mistral AI
         chat_response = client.chat(
@@ -127,7 +136,7 @@ async def chat(request: ChatRequest):
         )
 
         # Extract response
-        response_text = chat_response.messages[-1].content
+        response_text = chat_response.choices[0].message.content
         logger.debug(f"Received response from Mistral AI: {response_text}")
 
         return {"response": response_text}
