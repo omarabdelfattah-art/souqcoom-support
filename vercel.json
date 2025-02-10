@@ -4,9 +4,17 @@
         {
             "src": "main.py",
             "use": "@vercel/python"
+        },
+        {
+            "src": "templates/**",
+            "use": "@vercel/static"
         }
     ],
     "routes": [
+        {
+            "src": "/templates/(.*)",
+            "dest": "/templates/$1"
+        },
         {
             "src": "/(.*)",
             "dest": "main.py"

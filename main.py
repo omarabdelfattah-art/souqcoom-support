@@ -1,12 +1,14 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from mistralai.client import MistralClient
 import os
 from dotenv import load_dotenv
 import uvicorn
-from fastapi.responses import HTMLResponse
 import logging
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
@@ -36,89 +38,60 @@ client = MistralClient(api_key=os.getenv("MISTRAL_API_KEY"))
 
 class ChatRequest(BaseModel):
     message: str
+    language: str = "en"
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    return """
-    <html>
-        <head>
-            <title>Souqcoom Support API</title>
-            <style>
-                body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-                .endpoint { background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0; }
-                code { background: #e0e0e0; padding: 2px 5px; border-radius: 3px; }
-            </style>
-        </head>
-        <body>
-            <h1>🤖 Souqcoom Support API</h1>
-            <p>Welcome to the Souqcoom Support API. This API provides chat functionality for the Souqcoom support system.</p>
+    try:
+        template_path = Path("templates/index.html")
+        if not template_path.exists():
+            raise FileNotFoundError("Template file not found")
             
-            <div class="endpoint">
-                <h2>POST /chat</h2>
-                <p>Send a message to the chatbot.</p>
-                <p>Request body:</p>
-                <code>{"message": "Your question here"}</code>
-            </div>
-
-            <div class="endpoint">
-                <h2>GET /health</h2>
-                <p>Check the API health status.</p>
-            </div>
-            <div class="endpoint">
-                <h2>POST /test</h2>
-                <p>Test endpoint.</p>
-            </div>
-        </body>
-    </html>
-    """
+        with open(template_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except Exception as e:
+        logger.error(f"Error serving template: {str(e)}")
+        return HTMLResponse(content="<h1>Service Temporarily Unavailable</h1>", status_code=503)
 
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "version": "1.0.0"
-    }
-
-@app.post("/test")
-async def test():
-    return {"status": "success", "message": "Test endpoint working"}
+    return {"status": "healthy"}
 
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
-        logger.info(f"Received message: {request.message}")
-        messages = [
-            {"role": "user", "content": request.message}
-        ]
+        # Log incoming request
+        logger.info(f"Received chat request: {request.message[:100]}...")
 
-        api_key = os.getenv("MISTRAL_API_KEY")
-        if not api_key:
-            logger.error("MISTRAL_API_KEY not found in environment variables")
-            raise HTTPException(
-                status_code=500,
-                detail="API key not configured"
-            )
+        # Prepare system prompt based on language
+        system_prompt = """You are a helpful customer service assistant for Souq.com, an e-commerce platform. 
+        Provide clear, concise, and helpful responses. If you don't know something, say so honestly.
+        Keep responses friendly but professional."""
 
-        logger.info("Initializing Mistral client")
-        client = MistralClient(api_key=api_key)
-
-        logger.info("Sending request to Mistral API")
-        response = client.chat(
-            model="mistral-small-latest",
-            messages=messages,
+        if request.language == "ar":
+            system_prompt += "\nRespond in Arabic with proper RTL formatting."
+        
+        # Call Mistral AI
+        chat_response = client.chat(
+            model="mistral-tiny",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": request.message}
+            ],
             temperature=0.7,
+            max_tokens=500
         )
 
-        logger.info("Received response from Mistral API")
-        return {
-            "message": response.choices[0].message.content,
-            "status": "success"
-        }
+        # Extract and return response
+        response_text = chat_response.messages[-1].content
+        return {"response": response_text}
+
     except Exception as e:
-        logger.error(f"Error in chat endpoint: {str(e)}")
+        logger.error(f"Error processing chat request: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to process chat request: {str(e)}"
+            detail="An error occurred while processing your request"
         )
 
 if __name__ == "__main__":
