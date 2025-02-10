@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Souqcoom Support Chat</title>
+    <title id="chatTitle">Souqcoom Support Chat</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         * {
@@ -59,15 +59,27 @@
             background: rgba(255, 255, 255, 0.2);
             border: none;
             color: white;
-            padding: 5px 10px;
+            padding: 8px 12px;
             border-radius: 12px;
             font-size: 14px;
             cursor: pointer;
+            margin-left: 10px;
+        }
+
+        [dir="rtl"] .chat-header select {
+            margin-left: 0;
+            margin-right: 10px;
         }
 
         .chat-header select option {
             background: white;
             color: black;
+            padding: 8px;
+        }
+
+        .chat-header select:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
         }
 
         .chat-messages {
@@ -286,11 +298,15 @@
         <header class="chat-header">
             <div class="header-left">
                 <i class="fas fa-robot"></i>
-                <h1>Souqcoom Support</h1>
+                <h1 id="chatTitle">Souqcoom Support</h1>
             </div>
             <select id="languageSelect">
                 <option value="en">English</option>
                 <option value="ar">العربية</option>
+                <option value="fr">Français</option>
+                <option value="es">Español</option>
+                <option value="de">Deutsch</option>
+                <option value="tr">Türkçe</option>
             </select>
         </header>
         
@@ -310,14 +326,17 @@
 
     <div id="debugInfo"></div>
 
+    <script src="translations.js"></script>
     <script>
         const DEBUG = false;
         const messagesContainer = document.getElementById('chat-messages');
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('send-button');
         const languageSelect = document.getElementById('languageSelect');
+        const chatTitle = document.getElementById('chatTitle');
         const debugInfo = document.getElementById('debugInfo');
         let isProcessing = false;
+        let currentLanguage = 'en';
 
         function log(message, data = null) {
             if (DEBUG) {
@@ -328,6 +347,17 @@
                     debugInfo.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
                 }
             }
+        }
+
+        function updateLanguage(lang) {
+            currentLanguage = lang;
+            document.documentElement.dir = ['ar'].includes(lang) ? 'rtl' : 'ltr';
+            document.documentElement.lang = lang;
+            
+            // Update UI elements
+            chatTitle.textContent = translations[lang].title;
+            messageInput.placeholder = translations[lang].placeholder;
+            sendButton.setAttribute('aria-label', translations[lang].sendButton);
         }
 
         function createMessage(text, type) {
@@ -342,6 +372,10 @@
         function createLoadingIndicator() {
             const loading = document.createElement('div');
             loading.className = 'loading';
+            const text = document.createElement('span');
+            text.textContent = translations[currentLanguage].loadingMessage;
+            text.style.marginRight = '8px';
+            loading.appendChild(text);
             for (let i = 0; i < 3; i++) {
                 loading.appendChild(document.createElement('span'));
             }
@@ -363,17 +397,15 @@
             messageInput.disabled = true;
             sendButton.disabled = true;
 
-            // Add user message
             messagesContainer.appendChild(createMessage(message, 'outgoing'));
             scrollToBottom();
 
-            // Add loading indicator
             const loading = createLoadingIndicator();
             messagesContainer.appendChild(loading);
             scrollToBottom();
 
             try {
-                log('Sending message:', { message, language: languageSelect.value });
+                log('Sending message:', { message, language: currentLanguage });
 
                 const response = await fetch('/chat', {
                     method: 'POST',
@@ -382,7 +414,7 @@
                     },
                     body: JSON.stringify({
                         message: message,
-                        language: languageSelect.value
+                        language: currentLanguage
                     })
                 });
 
@@ -391,7 +423,7 @@
                 if (!response.ok) {
                     const errorData = await response.json();
                     log('Error response:', errorData);
-                    throw new Error(errorData.detail || 'Failed to get response');
+                    throw new Error(errorData.detail || translations[currentLanguage].errorMessage);
                 }
 
                 const data = await response.json();
@@ -402,12 +434,12 @@
                 if (data.response) {
                     messagesContainer.appendChild(createMessage(data.response, 'incoming'));
                 } else {
-                    throw new Error('Invalid response format');
+                    throw new Error(translations[currentLanguage].errorMessage);
                 }
             } catch (error) {
                 console.error('Error:', error);
                 loading.remove();
-                messagesContainer.appendChild(createMessage('Sorry, something went wrong. Please try again.', 'incoming'));
+                messagesContainer.appendChild(createMessage(translations[currentLanguage].errorMessage, 'incoming'));
             } finally {
                 isProcessing = false;
                 messageInput.disabled = false;
@@ -437,12 +469,14 @@
 
         // Handle language change
         languageSelect.addEventListener('change', function() {
-            document.documentElement.dir = this.value === 'ar' ? 'rtl' : 'ltr';
-            messageInput.placeholder = this.value === 'ar' ? 'اكتب رسالتك...' : 'Type your message...';
+            updateLanguage(this.value);
         });
 
+        // Initialize with default language
+        updateLanguage(currentLanguage);
+
         // Add initial message
-        messagesContainer.appendChild(createMessage('Hello! 👋 How can I help you today?', 'incoming'));
+        messagesContainer.appendChild(createMessage(translations[currentLanguage].initialMessage, 'incoming'));
     </script>
 </body>
 </html>

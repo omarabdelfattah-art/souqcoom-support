@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -71,6 +71,25 @@ async def root():
         logger.error(f"Error serving template: {str(e)}")
         return HTMLResponse(content="<h1>Service Temporarily Unavailable</h1>", status_code=503)
 
+@app.get("/translations.js")
+async def translations():
+    try:
+        translations_path = Path("templates/translations.js")
+        if not translations_path.exists():
+            logger.error(f"Translations file not found at {translations_path}")
+            raise FileNotFoundError("Translations file not found")
+            
+        with open(translations_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return Response(content=content, media_type="application/javascript")
+    except Exception as e:
+        logger.error(f"Error serving translations: {str(e)}")
+        return Response(
+            content="console.error('Failed to load translations');",
+            media_type="application/javascript",
+            status_code=503
+        )
+
 @app.get("/health")
 async def health_check():
     try:
@@ -108,16 +127,29 @@ async def chat(request: ChatRequest):
         if not request.message.strip():
             raise HTTPException(status_code=400, detail="Message cannot be empty")
 
+        # Validate language
+        if request.language not in ["en", "ar", "fr", "es", "de", "tr"]:
+            logger.warning(f"Invalid language {request.language}, falling back to English")
+            request.language = "en"
+
         # Prepare system prompt based on language
         system_message = ChatMessage(
             role="system",
-            content="""You are a helpful customer service assistant for Souq.com, an e-commerce platform. 
+            content=f"""You are a helpful customer service assistant for Souq.com, an e-commerce platform. 
             Provide clear, concise, and helpful responses. If you don't know something, say so honestly.
-            Keep responses friendly but professional."""
+            Keep responses friendly but professional. ALWAYS respond in {request.language}."""
         )
 
         if request.language == "ar":
             system_message.content += "\nRespond in Arabic with proper RTL formatting."
+        elif request.language == "fr":
+            system_message.content += "\nRépondez en français."
+        elif request.language == "es":
+            system_message.content += "\nResponda en español."
+        elif request.language == "de":
+            system_message.content += "\nAntworten Sie auf Deutsch."
+        elif request.language == "tr":
+            system_message.content += "\nTürkçe olarak yanıt verin."
         
         # Prepare messages
         messages = [
