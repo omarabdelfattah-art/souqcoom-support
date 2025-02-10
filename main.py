@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
@@ -11,6 +12,8 @@ import uvicorn
 import logging
 from pathlib import Path
 import json
+import time
+from fastapi.dependencies import Depends
 
 # Load environment variables
 load_dotenv()
@@ -55,6 +58,80 @@ except Exception as e:
 class ChatRequest(BaseModel):
     message: str
     language: str = "en"
+
+# Admin credentials - CHANGE THESE IN PRODUCTION
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "souqcoom2024"
+
+security = HTTPBasic()
+
+def verify_admin(credentials: HTTPBasicCredentials):
+    if credentials.username != ADMIN_USERNAME or credentials.password != ADMIN_PASSWORD:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return True
+
+@app.get("/admin")
+async def admin_page(credentials: HTTPBasicCredentials = Depends(security)):
+    verify_admin(credentials)
+    try:
+        with open("templates/admin.html", "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except Exception as e:
+        logger.error(f"Error serving admin template: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/admin/data")
+async def get_training_data(credentials: HTTPBasicCredentials = Depends(security)):
+    verify_admin(credentials)
+    try:
+        with open("training_data.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return JSONResponse(content=data)
+    except Exception as e:
+        logger.error(f"Error reading training data: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error reading training data")
+
+@app.post("/admin/data")
+async def update_training_data(request: Request, credentials: HTTPBasicCredentials = Depends(security)):
+    verify_admin(credentials)
+    try:
+        data = await request.json()
+        
+        # Validate data structure
+        required_keys = ["company_info", "common_responses", "product_categories", "faqs", "support_workflow"]
+        for key in required_keys:
+            if key not in data:
+                raise ValueError(f"Missing required key: {key}")
+
+        # Save backup
+        backup_path = f"training_data_backup_{int(time.time())}.json"
+        try:
+            with open("training_data.json", "r", encoding="utf-8") as f:
+                current_data = f.read()
+            with open(backup_path, "w", encoding="utf-8") as f:
+                f.write(current_data)
+        except Exception as e:
+            logger.warning(f"Failed to create backup: {str(e)}")
+
+        # Save new data
+        with open("training_data.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+
+        # Reload training data
+        global training_data
+        training_data = load_training_data()
+
+        return JSONResponse(content={"status": "success", "message": "Training data updated"})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating training data: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error updating training data")
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
