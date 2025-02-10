@@ -117,6 +117,17 @@ async def health_check():
             "api_key_configured": bool(api_key)
         }
 
+# Load training data
+def load_training_data():
+    try:
+        with open("training_data.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading training data: {str(e)}")
+        return None
+
+training_data = load_training_data()
+
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
@@ -132,12 +143,42 @@ async def chat(request: ChatRequest):
             logger.warning(f"Invalid language {request.language}, falling back to English")
             request.language = "en"
 
+        # Prepare context from training data
+        context = ""
+        if training_data:
+            context = f"""
+Company Information:
+{training_data['company_info']['description']}
+
+Key Values:
+{chr(10).join('- ' + value for value in training_data['company_info']['values'])}
+
+Available Product Categories:
+{chr(10).join('- ' + category for category in training_data['product_categories'])}
+
+Common Responses and FAQs are available for:
+- Shipping information
+- Returns policy
+- Payment methods
+- Order tracking
+- Order cancellation
+"""
+
         # Prepare system prompt based on language
         system_message = ChatMessage(
             role="system",
             content=f"""You are a helpful customer service assistant for Souq.com, an e-commerce platform. 
-            Provide clear, concise, and helpful responses. If you don't know something, say so honestly.
-            Keep responses friendly but professional. ALWAYS respond in {request.language}."""
+            Use the following context for accurate responses:
+
+            {context}
+
+            Guidelines:
+            1. Always be professional and courteous
+            2. Provide accurate information based on the context
+            3. If information is not in the context, say so honestly
+            4. Keep responses concise and clear
+            5. ALWAYS respond in {request.language}
+            """
         )
 
         if request.language == "ar":
@@ -158,7 +199,28 @@ async def chat(request: ChatRequest):
         elif request.language == "tr":
             system_message.content += "\nTürkçe olarak yanıt verin."
         
-        # Prepare messages
+        # Check if there's a predefined response in training data
+        predefined_response = None
+        if training_data and request.language in ["en", "ar"]:
+            # Check common responses
+            for key, responses in training_data["common_responses"].items():
+                if key.lower() in request.message.lower():
+                    predefined_response = responses.get(request.language)
+                    break
+            
+            # Check FAQs
+            if not predefined_response:
+                for faq in training_data["faqs"].values():
+                    if (faq["question"][request.language].lower() in request.message.lower() or
+                        any(word in request.message.lower() for word in faq["question"][request.language].lower().split())):
+                        predefined_response = faq["answer"][request.language]
+                        break
+
+        # If we have a predefined response, use it
+        if predefined_response:
+            return {"response": predefined_response}
+            
+        # Prepare messages for AI
         messages = [
             system_message,
             ChatMessage(role="user", content=request.message)

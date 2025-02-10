@@ -1,0 +1,80 @@
+{
+    "company_info": {
+        "name": "Souq.com",
+        "description": "Souq.com is the largest e-commerce platform in the Arab world, offering a wide range of products including electronics, fashion, household items, and more.",
+        "values": [
+            "Customer satisfaction is our top priority",
+            "Fast and reliable delivery",
+            "100% authentic products",
+            "Secure payment methods",
+            "24/7 customer support"
+        ]
+    },
+    "common_responses": {
+        "shipping": {
+            "en": "Shipping typically takes 2-5 business days within major cities. For remote areas, it might take 5-7 business days. You can track your order using the tracking number provided in your confirmation email.",
+            "ar": "تستغرق عملية الشحن عادةً من 2 إلى 5 أيام عمل داخل المدن الرئيسية. بالنسبة للمناطق النائية، قد تستغرق من 5 إلى 7 أيام عمل. يمكنكم تتبع طلبكم باستخدام رقم التتبع المرسل في بريد تأكيد الطلب."
+        },
+        "returns": {
+            "en": "You can return most items within 15 days of delivery. The item must be unused and in its original packaging. Simply visit your order history to initiate a return.",
+            "ar": "يمكنكم إرجاع معظم المنتجات خلال 15 يوماً من تاريخ التسليم. يجب أن يكون المنتج غير مستخدم وفي عبوته الأصلية. ما عليكم سوى زيارة سجل الطلبات لبدء عملية الإرجاع."
+        },
+        "payment_methods": {
+            "en": "We accept credit/debit cards, cash on delivery, and bank transfers. All online payments are secured with advanced encryption technology.",
+            "ar": "نقبل بطاقات الائتمان/الخصم، والدفع عند الاستلام، والتحويلات البنكية. جميع المدفوعات الإلكترونية مؤمنة بتقنية تشفير متقدمة."
+        }
+    },
+    "product_categories": [
+        "Electronics & Mobiles",
+        "Fashion",
+        "Home & Kitchen",
+        "Beauty & Health",
+        "Baby & Toys",
+        "Sports & Outdoors",
+        "Automotive",
+        "Books & Stationery"
+    ],
+    "faqs": {
+        "order_tracking": {
+            "question": {
+                "en": "How can I track my order?",
+                "ar": "كيف يمكنني تتبع طلبي؟"
+            },
+            "answer": {
+                "en": "You can track your order by:\n1. Logging into your Souq.com account\n2. Going to 'My Orders'\n3. Clicking on the order number\n4. Viewing the tracking details",
+                "ar": "يمكنكم تتبع طلبكم عن طريق:\n1. تسجيل الدخول إلى حسابكم في سوق.كوم\n2. الذهاب إلى 'طلباتي'\n3. النقر على رقم الطلب\n4. عرض تفاصيل التتبع"
+            }
+        },
+        "cancel_order": {
+            "question": {
+                "en": "Can I cancel my order?",
+                "ar": "هل يمكنني إلغاء طلبي؟"
+            },
+            "answer": {
+                "en": "You can cancel your order if it hasn't been shipped yet. Go to 'My Orders' and look for the cancel option. If the order is already shipped, you'll need to initiate a return after receiving it.",
+                "ar": "يمكنكم إلغاء الطلب إذا لم يتم شحنه بعد. اذهبوا إلى 'طلباتي' وابحثوا عن خيار الإلغاء. إذا تم شحن الطلب بالفعل، ستحتاجون إلى بدء عملية الإرجاع بعد استلامه."
+            }
+        }
+    },
+    "support_workflow": {
+        "greeting": {
+            "first_contact": {
+                "en": "Welcome to Souq.com support! I'm your AI assistant. How may I help you today?",
+                "ar": "مرحباً بكم في دعم سوق.كوم! أنا مساعدكم الذكي. كيف يمكنني خدمتكم اليوم؟"
+            },
+            "return_customer": {
+                "en": "Welcome back to Souq.com support! How may I assist you today?",
+                "ar": "مرحباً بعودتكم إلى دعم سوق.كوم! كيف يمكنني مساعدتكم اليوم؟"
+            }
+        },
+        "issue_resolution": {
+            "steps": [
+                "Identify customer's primary concern",
+                "Verify order/account details if needed",
+                "Provide clear, step-by-step solutions",
+                "Confirm if the solution helps",
+                "Offer additional assistance"
+            ]
+        }
+    }
+}
