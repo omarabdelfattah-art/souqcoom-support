@@ -4,23 +4,16 @@
         {
             "src": "main.py",
             "use": "@vercel/python"
-        },
-        {
-            "src": "templates/**",
-            "use": "@vercel/static"
         }
     ],
     "routes": [
-        {
-            "src": "/templates/(.*)",
-            "dest": "/templates/$1"
-        },
         {
             "src": "/(.*)",
             "dest": "main.py"
         }
     ],
     "env": {
-        "PYTHON_VERSION": "3.11"
+        "PYTHONPATH": ".",
+        "MISTRAL_API_KEY": "@mistral_api_key"
     }
 }

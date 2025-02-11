@@ -14,6 +14,7 @@ from pathlib import Path
 import json
 import time
 from fastapi.dependencies import Depends
+from fastapi.templating import Jinja2Templates
 
 # Load environment variables
 load_dotenv()
@@ -32,7 +33,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
+# Setup templates and static files
+templates = Jinja2Templates(directory="templates")
+os.makedirs("templates", exist_ok=True)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Ensure CORS is properly configured
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -74,13 +82,11 @@ def verify_admin(credentials: HTTPBasicCredentials):
         )
     return True
 
-@app.get("/admin")
-async def admin_page(credentials: HTTPBasicCredentials = Depends(security)):
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request, credentials: HTTPBasicCredentials = Depends(security)):
     verify_admin(credentials)
     try:
-        with open("templates/admin.html", "r", encoding="utf-8") as f:
-            content = f.read()
-        return HTMLResponse(content=content)
+        return templates.TemplateResponse("admin.html", {"request": request})
     except Exception as e:
         logger.error(f"Error serving admin template: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -134,16 +140,9 @@ async def update_training_data(request: Request, credentials: HTTPBasicCredentia
         raise HTTPException(status_code=500, detail="Error updating training data")
 
 @app.get("/", response_class=HTMLResponse)
-async def root():
+async def root(request: Request):
     try:
-        template_path = Path("templates/index.html")
-        if not template_path.exists():
-            logger.error(f"Template file not found at {template_path}")
-            raise FileNotFoundError("Template file not found")
-            
-        with open(template_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return HTMLResponse(content=content)
+        return templates.TemplateResponse("index.html", {"request": request})
     except Exception as e:
         logger.error(f"Error serving template: {str(e)}")
         return HTMLResponse(content="<h1>Service Temporarily Unavailable</h1>", status_code=503)
