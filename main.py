@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
@@ -15,6 +17,10 @@ app = FastAPI(
     description="AI-powered customer support chat for Souq.com",
     version="1.0.0"
 )
+
+# Mount static files and templates
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 # CORS configuration
 app.add_middleware(
@@ -89,9 +95,8 @@ def verify_admin(credentials: HTTPBasicCredentials):
 
 # Serve index page
 @app.get("/", response_class=HTMLResponse)
-async def root():
-    with open("templates/index.html", "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+async def root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
 # Serve admin page
 @app.get("/admin", response_class=HTMLResponse)
