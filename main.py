@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response, Request
+from fastapi import FastAPI, HTTPException, Response, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -6,41 +6,87 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
-import os
 from dotenv import load_dotenv
-import uvicorn
+import os
 import logging
 from pathlib import Path
 import json
 import time
-from fastapi.dependencies import Depends
-from fastapi.templating import Jinja2Templates
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
 
-# Set up logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Get API key from environment
+api_key = os.getenv("MISTRAL_API_KEY")
+if not api_key:
+    logger.warning("MISTRAL_API_KEY not found in environment variables")
 
-# Initialize FastAPI app
+# Initialize Mistral client
+client = MistralClient(api_key=api_key)
+
+# Initialize FastAPI
 app = FastAPI(
-    title="Souqcoom Support API",
-    description="AI-powered support chat API for Souqcoom",
+    title="Souqcoom Support Chat",
+    description="AI-powered customer support chat for Souq.com",
     version="1.0.0"
 )
 
-# Setup templates and static files
-templates = Jinja2Templates(directory="templates")
-os.makedirs("templates", exist_ok=True)
+# Base directory for templates and static files
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = BASE_DIR / "templates"
+STATIC_DIR = BASE_DIR / "static"
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Ensure directories exist
+TEMPLATES_DIR.mkdir(exist_ok=True)
+STATIC_DIR.mkdir(exist_ok=True)
 
-# Ensure CORS is properly configured
+# Default training data
+DEFAULT_TRAINING_DATA = {
+    "company_info": {
+        "name": "Souq.com",
+        "description": "Souq.com is the largest e-commerce platform in the Arab world.",
+        "values": ["Customer satisfaction", "Fast delivery", "Authentic products"]
+    },
+    "common_responses": {
+        "shipping": {
+            "en": "Shipping takes 2-5 business days.",
+            "ar": "يستغرق الشحن من 2 إلى 5 أيام عمل."
+        }
+    },
+    "product_categories": ["Electronics", "Fashion", "Home"],
+    "faqs": {},
+    "support_workflow": {
+        "greeting": {
+            "en": "Welcome to Souq.com support!",
+            "ar": "مرحباً بكم في دعم سوق.كوم!"
+        }
+    }
+}
+
+# Load training data
+def load_training_data():
+    try:
+        training_file = BASE_DIR / "training_data.json"
+        if not training_file.exists():
+            # Create default training data file if it doesn't exist
+            with open(training_file, "w", encoding="utf-8") as f:
+                json.dump(DEFAULT_TRAINING_DATA, f, indent=4, ensure_ascii=False)
+            return DEFAULT_TRAINING_DATA
+            
+        with open(training_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading training data: {str(e)}")
+        return DEFAULT_TRAINING_DATA
+
+# Load initial training data
+training_data = load_training_data()
+
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -49,25 +95,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get API key
-api_key = os.getenv("MISTRAL_API_KEY")
-if not api_key:
-    logger.error("MISTRAL_API_KEY not found in environment variables")
-    raise ValueError("MISTRAL_API_KEY environment variable is required")
-
-# Initialize Mistral AI client
-try:
-    client = MistralClient(api_key=api_key)
-    logger.info("Mistral AI client initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize Mistral AI client: {str(e)}")
-    raise
-
 class ChatRequest(BaseModel):
     message: str
     language: str = "en"
 
-# Admin credentials - CHANGE THESE IN PRODUCTION
+# Admin credentials
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "souqcoom2024"
 
@@ -82,26 +114,55 @@ def verify_admin(credentials: HTTPBasicCredentials):
         )
     return True
 
+# Serve static files
+@app.get("/static/{file_path:path}")
+async def serve_static(file_path: str):
+    file = STATIC_DIR / file_path
+    if not file.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file)
+
+# Serve index page
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    try:
+        index_file = TEMPLATES_DIR / "index.html"
+        if not index_file.exists():
+            raise HTTPException(status_code=404, detail="Template not found")
+            
+        with open(index_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except Exception as e:
+        logger.error(f"Error serving template: {str(e)}")
+        return HTMLResponse(
+            content="<h1>Service Temporarily Unavailable</h1>",
+            status_code=503
+        )
+
+# Serve admin page
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_page(request: Request, credentials: HTTPBasicCredentials = Depends(security)):
+async def admin_page(credentials: HTTPBasicCredentials = Depends(security)):
     verify_admin(credentials)
     try:
-        return templates.TemplateResponse("admin.html", {"request": request})
+        admin_file = TEMPLATES_DIR / "admin.html"
+        if not admin_file.exists():
+            raise HTTPException(status_code=404, detail="Admin template not found")
+            
+        with open(admin_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
     except Exception as e:
         logger.error(f"Error serving admin template: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+# Get training data
 @app.get("/admin/data")
 async def get_training_data(credentials: HTTPBasicCredentials = Depends(security)):
     verify_admin(credentials)
-    try:
-        with open("training_data.json", "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return JSONResponse(content=data)
-    except Exception as e:
-        logger.error(f"Error reading training data: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error reading training data")
+    return JSONResponse(content=training_data)
 
+# Update training data
 @app.post("/admin/data")
 async def update_training_data(request: Request, credentials: HTTPBasicCredentials = Depends(security)):
     verify_admin(credentials)
@@ -114,18 +175,18 @@ async def update_training_data(request: Request, credentials: HTTPBasicCredentia
             if key not in data:
                 raise ValueError(f"Missing required key: {key}")
 
-        # Save backup
-        backup_path = f"training_data_backup_{int(time.time())}.json"
+        # Save backup if possible
         try:
-            with open("training_data.json", "r", encoding="utf-8") as f:
+            backup_file = BASE_DIR / f"training_data_backup_{int(time.time())}.json"
+            with open(BASE_DIR / "training_data.json", "r", encoding="utf-8") as f:
                 current_data = f.read()
-            with open(backup_path, "w", encoding="utf-8") as f:
+            with open(backup_file, "w", encoding="utf-8") as f:
                 f.write(current_data)
         except Exception as e:
             logger.warning(f"Failed to create backup: {str(e)}")
 
         # Save new data
-        with open("training_data.json", "w", encoding="utf-8") as f:
+        with open(BASE_DIR / "training_data.json", "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
 
         # Reload training data
@@ -139,71 +200,7 @@ async def update_training_data(request: Request, credentials: HTTPBasicCredentia
         logger.error(f"Error updating training data: {str(e)}")
         raise HTTPException(status_code=500, detail="Error updating training data")
 
-@app.get("/", response_class=HTMLResponse)
-async def root(request: Request):
-    try:
-        return templates.TemplateResponse("index.html", {"request": request})
-    except Exception as e:
-        logger.error(f"Error serving template: {str(e)}")
-        return HTMLResponse(content="<h1>Service Temporarily Unavailable</h1>", status_code=503)
-
-@app.get("/translations.js")
-async def translations():
-    try:
-        translations_path = Path("templates/translations.js")
-        if not translations_path.exists():
-            logger.error(f"Translations file not found at {translations_path}")
-            raise FileNotFoundError("Translations file not found")
-            
-        with open(translations_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return Response(content=content, media_type="application/javascript")
-    except Exception as e:
-        logger.error(f"Error serving translations: {str(e)}")
-        return Response(
-            content="console.error('Failed to load translations');",
-            media_type="application/javascript",
-            status_code=503
-        )
-
-@app.get("/health")
-async def health_check():
-    try:
-        # Test Mistral AI connection with minimal token usage
-        messages = [
-            ChatMessage(role="user", content="test")
-        ]
-        
-        client.chat(
-            model="mistral-tiny",
-            messages=messages,
-            max_tokens=1
-        )
-        
-        return {
-            "status": "healthy",
-            "mistral_api": "connected",
-            "api_key_configured": bool(api_key)
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "api_key_configured": bool(api_key)
-        }
-
-# Load training data
-def load_training_data():
-    try:
-        with open("training_data.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Error loading training data: {str(e)}")
-        return None
-
-training_data = load_training_data()
-
+# Chat endpoint
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
@@ -231,16 +228,9 @@ Key Values:
 
 Available Product Categories:
 {chr(10).join('- ' + category for category in training_data['product_categories'])}
-
-Common Responses and FAQs are available for:
-- Shipping information
-- Returns policy
-- Payment methods
-- Order tracking
-- Order cancellation
 """
 
-        # Prepare system prompt based on language
+        # Prepare system prompt
         system_message = ChatMessage(
             role="system",
             content=f"""You are a helpful customer service assistant for Souq.com, an e-commerce platform. 
@@ -257,6 +247,7 @@ Common Responses and FAQs are available for:
             """
         )
 
+        # Add language-specific instructions
         if request.language == "ar":
             system_message.content += """\nأنت مساعد افتراضي ذكي متخصص في خدمة عملاء سوق.كوم. يجب أن تكون إجاباتك:
 1. مهنية ودقيقة
@@ -274,8 +265,8 @@ Common Responses and FAQs are available for:
             system_message.content += "\nAntworten Sie auf Deutsch."
         elif request.language == "tr":
             system_message.content += "\nTürkçe olarak yanıt verin."
-        
-        # Check if there's a predefined response in training data
+
+        # Check for predefined responses
         predefined_response = None
         if training_data and request.language in ["en", "ar"]:
             # Check common responses
@@ -292,10 +283,10 @@ Common Responses and FAQs are available for:
                         predefined_response = faq["answer"][request.language]
                         break
 
-        # If we have a predefined response, use it
+        # Return predefined response if available
         if predefined_response:
             return {"response": predefined_response}
-            
+
         # Prepare messages for AI
         messages = [
             system_message,
@@ -328,5 +319,5 @@ Common Responses and FAQs are available for:
         )
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
