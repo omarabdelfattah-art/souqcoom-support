@@ -38,16 +38,22 @@ api_key = os.getenv("MISTRAL_API_KEY", "")
 print(f"Debug: API Key present: {bool(api_key)}")
 print(f"Debug: API Key length: {len(api_key) if api_key else 0}")
 
-if not api_key:
-    print("Warning: MISTRAL_API_KEY environment variable is not set!")
-    client = None
-else:
-    try:
-        client = MistralClient(api_key=api_key)
-        print("Debug: Mistral client initialized successfully")
-    except Exception as e:
-        print(f"Error initializing Mistral client: {str(e)}")
+try:
+    if not api_key:
+        print("Warning: MISTRAL_API_KEY environment variable is not set!")
         client = None
+    else:
+        client = MistralClient(api_key=api_key)
+        # Test the client with a simple completion
+        test_response = client.chat(
+            model="mistral-tiny",
+            messages=[ChatMessage(role="user", content="test")],
+            max_tokens=10
+        )
+        print("Debug: Mistral client test successful")
+except Exception as e:
+    print(f"Error initializing/testing Mistral client: {str(e)}")
+    client = None
 
 # Default training data
 DEFAULT_TRAINING_DATA = {
