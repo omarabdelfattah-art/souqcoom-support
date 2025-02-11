@@ -11,6 +11,8 @@ import os
 import json
 import time
 
+print("Starting application...")
+
 # Initialize FastAPI
 app = FastAPI(
     title="Souqcoom Support Chat",
@@ -32,8 +34,20 @@ app.add_middleware(
 )
 
 # Initialize Mistral client
-api_key = os.getenv("MISTRAL_API_KEY")
-client = MistralClient(api_key=api_key) if api_key else None
+api_key = os.getenv("MISTRAL_API_KEY", "")
+print(f"Debug: API Key present: {bool(api_key)}")
+print(f"Debug: API Key length: {len(api_key) if api_key else 0}")
+
+if not api_key:
+    print("Warning: MISTRAL_API_KEY environment variable is not set!")
+    client = None
+else:
+    try:
+        client = MistralClient(api_key=api_key)
+        print("Debug: Mistral client initialized successfully")
+    except Exception as e:
+        print(f"Error initializing Mistral client: {str(e)}")
+        client = None
 
 # Default training data
 DEFAULT_TRAINING_DATA = {
