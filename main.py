@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -10,6 +10,7 @@ from mistralai.models.chat_completion import ChatMessage
 import os
 import json
 import time
+import logging
 
 print("Starting application...")
 
@@ -168,89 +169,59 @@ async def update_training_data(request: Request, credentials: HTTPBasicCredentia
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Chat endpoint
+# Add favicon route
+@app.get('/favicon.ico')
+async def favicon():
+    return FileResponse('static/favicon.ico')
+
+# Update the chat endpoint with better error handling
 @app.post("/chat")
 async def chat(request: ChatRequest):
-    if not client:
-        print("Debug: API key status:", bool(api_key))  # Debug line
-        raise HTTPException(status_code=500, detail="API key not configured")
-    
     try:
-        # Debug print
-        print(f"Debug: Processing message: {request.message} in language: {request.language}")
+        if not client:
+            print("Error: Mistral client not initialized")
+            raise HTTPException(status_code=503, detail="Chat service unavailable")
+        
+        # Sanitize input
+        message = request.message.strip()
+        if not message:
+            raise HTTPException(status_code=400, detail="Message cannot be empty")
+            
+        print(f"Processing chat request: {message[:50]}... in {request.language}")
         
         # Validate language
         if request.language not in ["en", "ar", "fr", "es", "de", "tr"]:
             request.language = "en"
 
-        # Check for predefined responses
-        if training_data and request.language in ["en", "ar"]:
-            # Check common responses
-            for key, responses in training_data["common_responses"].items():
-                if key.lower() in request.message.lower():
-                    return {"response": responses.get(request.language)}
-            
-            # Check FAQs
-            for faq in training_data["faqs"].values():
-                if (faq["question"][request.language].lower() in request.message.lower()):
-                    return {"response": faq["answer"][request.language]}
-
-        # Prepare context
-        context = f"""
-Company: {training_data['company_info']['name']}
-Description: {training_data['company_info']['description']}
-Values: {', '.join(training_data['company_info']['values'])}
-Categories: {', '.join(training_data['product_categories'])}
-"""
-
-        # Debug print
-        print("Debug: Sending request to Mistral API")
-        
-        # Prepare system message
-        system_message = ChatMessage(
-            role="system",
-            content=f"""You are a helpful customer service assistant for Souq.com.
-Use this context for accurate responses:
-
-{context}
-
-Guidelines:
-1. Be professional and courteous
-2. Provide accurate information
-3. Keep responses concise
-4. Respond in {request.language}
-"""
-        )
-
-        # Add language-specific instructions
-        if request.language == "ar":
-            system_message.content += "\nأجب باللغة العربية الفصحى المبسطة."
-        elif request.language == "fr":
-            system_message.content += "\nRépondez en français."
-        elif request.language == "es":
-            system_message.content += "\nResponda en español."
-        elif request.language == "de":
-            system_message.content += "\nAntworten Sie auf Deutsch."
-        elif request.language == "tr":
-            system_message.content += "\nTürkçe olarak yanıt verin."
-
         try:
-            # Call Mistral AI
+            # Call Mistral AI directly first
             chat_response = client.chat(
                 model="mistral-tiny",
                 messages=[
-                    system_message,
-                    ChatMessage(role="user", content=request.message)
+                    ChatMessage(
+                        role="system",
+                        content=f"You are a helpful customer service assistant for Souq.com. Respond in {request.language}."
+                    ),
+                    ChatMessage(role="user", content=message)
                 ],
                 temperature=0.7,
                 max_tokens=200
             )
+            
             print("Debug: Got response from Mistral API")
             return {"response": chat_response.choices[0].message.content}
-        except Exception as e:
-            print(f"Debug: Mistral API error: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Mistral API error: {str(e)}")
-
+            
+        except Exception as api_error:
+            print(f"Mistral API error: {str(api_error)}")
+            raise HTTPException(status_code=500, detail=f"Chat service error: {str(api_error)}")
+            
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Debug: General error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Unexpected error in chat endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
+# Add health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "api_configured": bool(client)}
