@@ -152,9 +152,13 @@ async def update_training_data(request: Request, credentials: HTTPBasicCredentia
 @app.post("/chat")
 async def chat(request: ChatRequest):
     if not client:
+        print("Debug: API key status:", bool(api_key))  # Debug line
         raise HTTPException(status_code=500, detail="API key not configured")
     
     try:
+        # Debug print
+        print(f"Debug: Processing message: {request.message} in language: {request.language}")
+        
         # Validate language
         if request.language not in ["en", "ar", "fr", "es", "de", "tr"]:
             request.language = "en"
@@ -179,6 +183,9 @@ Values: {', '.join(training_data['company_info']['values'])}
 Categories: {', '.join(training_data['product_categories'])}
 """
 
+        # Debug print
+        print("Debug: Sending request to Mistral API")
+        
         # Prepare system message
         system_message = ChatMessage(
             role="system",
@@ -207,17 +214,23 @@ Guidelines:
         elif request.language == "tr":
             system_message.content += "\nTürkçe olarak yanıt verin."
 
-        # Call Mistral AI
-        chat_response = client.chat(
-            model="mistral-tiny",
-            messages=[
-                system_message,
-                ChatMessage(role="user", content=request.message)
-            ],
-            temperature=0.7,
-            max_tokens=200
-        )
+        try:
+            # Call Mistral AI
+            chat_response = client.chat(
+                model="mistral-tiny",
+                messages=[
+                    system_message,
+                    ChatMessage(role="user", content=request.message)
+                ],
+                temperature=0.7,
+                max_tokens=200
+            )
+            print("Debug: Got response from Mistral API")
+            return {"response": chat_response.choices[0].message.content}
+        except Exception as e:
+            print(f"Debug: Mistral API error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Mistral API error: {str(e)}")
 
-        return {"response": chat_response.choices[0].message.content}
     except Exception as e:
+        print(f"Debug: General error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
