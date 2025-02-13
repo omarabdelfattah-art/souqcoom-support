@@ -5,14 +5,18 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from mistralai.client import MistralClient
-from mistralai.models.chat_completion import ChatMessage
 import os
 import json
 import time
-import logging
+import requests
+from dotenv import load_dotenv
 
 print("Starting application...")
+
+# Load environment variables
+load_dotenv()
+MISTRAL_API_KEY = os.getenv('MISTRAL_API_KEY')
+API_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"
 
 # Initialize FastAPI
 app = FastAPI(
@@ -34,27 +38,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Mistral client
-api_key = os.getenv("MISTRAL_API_KEY", "")
-print(f"Debug: API Key present: {bool(api_key)}")
-print(f"Debug: API Key length: {len(api_key) if api_key else 0}")
-
-try:
-    if not api_key:
-        print("Warning: MISTRAL_API_KEY environment variable is not set!")
-        client = None
-    else:
-        client = MistralClient(api_key=api_key)
-        # Test the client with a simple completion
-        test_response = client.chat(
-            model="mistral-tiny",
-            messages=[ChatMessage(role="user", content="test")],
-            max_tokens=10
-        )
-        print("Debug: Mistral client test successful")
-except Exception as e:
-    print(f"Error initializing/testing Mistral client: {str(e)}")
-    client = None
+# Print API key status
+print(f"Debug: API Key present: {bool(MISTRAL_API_KEY)}")
+print(f"Debug: API Key length: {len(MISTRAL_API_KEY) if MISTRAL_API_KEY else 0}")
 
 # Default training data
 DEFAULT_TRAINING_DATA = {
@@ -174,54 +160,70 @@ async def update_training_data(request: Request, credentials: HTTPBasicCredentia
 async def favicon():
     return FileResponse('static/favicon.ico')
 
-# Update the chat endpoint with better error handling
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
-        if not client:
-            print("Error: Mistral client not initialized")
-            raise HTTPException(status_code=503, detail="Chat service unavailable")
+        if not MISTRAL_API_KEY:
+            print("Error: MISTRAL_API_KEY not set")
+            return {"response": "I apologize, but I'm temporarily unavailable. Please try again in a few moments."}
         
         # Sanitize input
         message = request.message.strip()
         if not message:
             raise HTTPException(status_code=400, detail="Message cannot be empty")
             
-        print(f"Processing chat request: {message[:50]}... in {request.language}")
+        print(f"Debug: Processing chat request: {message[:50]}...")
         
-        # Validate language
-        if request.language not in ["en", "ar", "fr", "es", "de", "tr"]:
-            request.language = "en"
-
-        try:
-            # Call Mistral AI directly first
-            chat_response = client.chat(
-                model="mistral-tiny",
-                messages=[
-                    ChatMessage(
-                        role="system",
-                        content=f"You are a helpful customer service assistant for Souq.com. Respond in {request.language}."
-                    ),
-                    ChatMessage(role="user", content=message)
-                ],
-                temperature=0.7,
-                max_tokens=200
-            )
-            
-            print("Debug: Got response from Mistral API")
-            return {"response": chat_response.choices[0].message.content}
-            
-        except Exception as api_error:
-            print(f"Mistral API error: {str(api_error)}")
-            raise HTTPException(status_code=500, detail=f"Chat service error: {str(api_error)}")
-            
-    except HTTPException:
-        raise
+        # Prepare headers and data
+        headers = {
+            "Authorization": f"Bearer {MISTRAL_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "mistral-small-latest",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": f"You are a helpful customer service assistant for Souqcoom. Respond in {request.language}."
+                },
+                {
+                    "role": "user",
+                    "content": message
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 500
+        }
+        
+        # Make API request with retry logic
+        for attempt in range(3):
+            try:
+                print(f"Debug: Sending request to Mistral API (attempt {attempt + 1})...")
+                response = requests.post(API_ENDPOINT, headers=headers, json=data, timeout=10)
+                response.raise_for_status()
+                
+                response_content = response.json()['choices'][0]['message']['content']
+                print(f"Debug: Received response: {response_content[:50]}...")
+                return {"response": response_content}
+                
+            except requests.exceptions.RequestException as e:
+                print(f"API request attempt {attempt + 1} failed: {str(e)}")
+                if attempt == 2:  # Last attempt
+                    return {"response": "I apologize, but I'm having trouble connecting. Please try again in a moment."}
+                time.sleep(1)  # Wait before retrying
+                
     except Exception as e:
         print(f"Unexpected error in chat endpoint: {str(e)}")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+        return {"response": "I apologize, but I encountered an error. Please try again."}
 
-# Add health check endpoint
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "api_configured": bool(client)}
+    return {"status": "healthy", "api_configured": bool(MISTRAL_API_KEY)}
+
+if __name__ == "__main__":
+    # Example usage
+    prompt = "Write a short poem about coding"
+    # response = chat_completion(prompt)
+    # if response:
+    #     print("Response:", response)
